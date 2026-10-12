@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Concession Register Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: POS terminal. Guest at the counter on top, menu keys left, live order + tender keys right. Single dark look, like a real register screen. */
+:root{
+  --bg:#e9ecf1; --panel:#ffffff; --raise:#e3e7ee; --line:#c3c9d4; --screen:#f7f8fa;
+  --fg:#12151b; --muted:#4f5664; --accent:#b42318; --accent-ink:#ffffff;
+  --good:#18794e; --good-ink:#ffffff; --bad:#c42b2b; --card:#1f5fbf; --card-ink:#ffffff;
+  --paper:#fbf8f1; --ink:#1d1913; --ink-soft:#6b6355;
+  --c-tickets:#c73535; --c-popcorn:#b97d06; --c-drinks:#2468c2; --c-icee:#0e8fa1;
+  --c-food:#c25a17; --c-candy:#b5307a; --c-icecream:#7650c9; --c-merch:#5d7e27;
+  --f-display:'Barlow Condensed','Arial Narrow',sans-serif;
+  --f-body:'Barlow',system-ui,-apple-system,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.4;padding-inline:16px;padding-block:12px 40px}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;justify-content:space-between}
+.brand{display:flex;flex-direction:column}
+.brand small{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;color:var(--accent);font-weight:600;text-transform:uppercase}
+.brand b{font-family:var(--f-display);font-size:26px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.topr{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{padding:7px 12px;border-radius:7px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.stats{font-family:var(--f-mono);font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.stats b{color:var(--fg);font-weight:600}
+.linkbtn{color:var(--muted);text-decoration:underline;font-size:12px}
+
+/* guest */
+.guest{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start}
+.av{width:46px;height:46px;border-radius:50%;background:var(--raise);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:20px;color:var(--accent)}
+.gbody{display:flex;flex-direction:column;gap:8px;min-width:0}
+.gname{font-size:13px;color:var(--muted)}
+.gname b{color:var(--fg)}
+.bubble{background:var(--raise);border-radius:4px 14px 14px 14px;padding:11px 14px;font-size:17px;line-height:1.45;max-width:62ch}
+.bubble.twist{border:1px solid var(--accent);animation:pop .25s ease-out}
+.bubble.react{border:1px solid var(--bad)}
+@keyframes pop{from{transform:scale(.96);opacity:.4}to{transform:none;opacity:1}}
+.gside{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.timer{font-family:var(--f-mono);font-size:22px;font-weight:600}
+.smallbtn{font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);color:var(--muted)}
+.phone{display:inline-flex;align-items:center;gap:10px;background:var(--raise);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--muted);align-self:flex-start}
+.phone svg{width:44px;height:44px;border-radius:4px}
+.slip{background:var(--paper);color:var(--ink);font-family:var(--f-mono);font-size:13px;padding:12px 14px;border-radius:4px;max-width:360px;line-height:1.55}
+.slip .h{font-weight:600;border-bottom:1px dashed var(--ink-soft);padding-bottom:6px;margin-bottom:6px;display:flex;justify-content:space-between;gap:10px}
+.slip .f{border-top:1px dashed var(--ink-soft);margin-top:6px;padding-top:6px;color:var(--ink-soft)}
+.freenote{background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:12px 14px;color:var(--muted)}
+@media (max-width:560px){.guest{grid-template-columns:auto minmax(0,1fr)}.gside{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center}.bubble{font-size:16px}}
+
+/* main */
+.pos{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,370px);gap:14px;align-items:start}
+@media (max-width:860px){.pos{grid-template-columns:minmax(0,1fr)}}
+.menu{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{--c:var(--accent);flex:0 0 auto;padding:9px 14px;border-radius:9px;font-family:var(--f-display);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.cat[aria-pressed="true"]{background:var(--c);border-color:var(--c);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.tile{--c:var(--accent);display:flex;flex-direction:column;justify-content:space-between;gap:10px;min-height:92px;padding:12px;border-radius:10px;border:2px solid var(--c);border-top-width:6px;background:color-mix(in srgb,var(--c) 9%,var(--panel));text-align:left;transition:transform .08s}
+.tile:active{transform:scale(.97)}
+.tile b{font-family:var(--f-display);font-size:20px;line-height:1.05;text-transform:uppercase;letter-spacing:.02em;font-weight:700}
+.tile span{font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+.tile em{font-style:normal;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg);font-weight:600}
+.movie{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.mhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.mhead b{font-family:var(--f-display);font-size:22px;text-transform:uppercase;letter-spacing:.02em}
+.rating{font-family:var(--f-mono);font-size:11px;border:1px solid var(--muted);border-radius:4px;padding:1px 5px;color:var(--muted)}
+.times{display:flex;flex-wrap:wrap;gap:6px}
+.time{padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--c-tickets) 9%,var(--panel));border:2px solid var(--c-tickets);font-family:var(--f-mono);font-weight:600;font-size:14px;display:flex;flex-direction:column;align-items:flex-start;line-height:1.2}
+.time small{font-size:10px;letter-spacing:.08em;color:var(--accent)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:12px}
+
+/* order */
+.order{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:860px){.order{position:static}}
+.ohead{display:flex;justify-content:space-between;align-items:center}
+.ohead b{font-family:var(--f-display);font-size:20px;text-transform:uppercase;letter-spacing:.04em}
+.ot{display:grid;grid-template-columns:repeat(3,1fr);width:100%}
+.ot button{padding:8px 4px}
+.member{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.scan{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border-radius:10px;border:1px dashed var(--accent);color:var(--accent);font-weight:600}
+.scan:disabled{opacity:.4;cursor:not-allowed}
+.mrow{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-size:13px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.lines{display:flex;flex-direction:column;max-height:40vh;overflow:auto;min-height:60px}
+.line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.line .nm{font-weight:600;line-height:1.2}
+.line .dt{font-size:12.5px;color:var(--muted)}
+.qty{display:flex;align-items:center;gap:2px}
+.qty button{width:30px;height:30px;border-radius:7px;background:var(--raise);font-weight:700}
+.qty span{min-width:22px;text-align:center}
+.line .pr{min-width:62px;text-align:right}
+.disc{color:var(--good)}
+.tot{display:flex;flex-direction:column;gap:3px;font-size:14px}
+.tot div{display:flex;justify-content:space-between}
+.tot .grand{font-family:var(--f-display);font-size:28px;font-weight:700;margin-top:4px}
+.pay{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.paybtn{padding:16px 8px;border-radius:10px;font-family:var(--f-display);font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.paybtn:disabled{opacity:.35;cursor:not-allowed}
+.p-cash{background:var(--good);color:var(--good-ink)}
+.p-card{background:var(--card);color:var(--card-ink)}
+.p-app{background:var(--accent);color:var(--accent-ink);grid-column:1/-1}
+.void{color:var(--bad);font-size:13px;font-weight:600;justify-self:start}
+
+/* modal */
+.backdrop{position:fixed;inset:0;background:rgba(18,21,27,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:100%;max-width:520px;max-height:calc(100% - 24px);overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+.sheet.wide{max-width:760px}
+.sheet h2{margin:0;font-family:var(--f-display);font-size:26px;text-transform:uppercase;letter-spacing:.03em;text-wrap:balance}
+.shead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.x{width:36px;height:36px;border-radius:8px;background:var(--raise);font-size:18px}
+@media (max-width:560px){.backdrop{align-items:flex-end;padding:0}.sheet{border-radius:16px 16px 0 0;max-height:92%;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}}
+.group{display:flex;flex-direction:column;gap:6px}
+.group label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
+.opt{padding:11px 8px;border-radius:9px;background:var(--raise);border:1px solid var(--line);font-weight:600;font-size:14px;line-height:1.2}
+.opt small{display:block;font-family:var(--f-mono);font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.opt[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.opt[aria-pressed="true"] small{color:var(--accent-ink)}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{width:40px;height:40px;border-radius:9px;background:var(--raise);font-size:20px;font-weight:700}
+.stepper span{min-width:28px;text-align:center;font-size:20px}
+.trow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.big{width:100%;padding:15px;border-radius:11px;background:var(--accent);color:var(--accent-ink);font-family:var(--f-display);font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.big:disabled{opacity:.35;cursor:not-allowed}
+.big.alt{background:var(--raise);color:var(--fg)}
+.due{display:flex;justify-content:space-between;align-items:baseline;background:var(--raise);border-radius:10px;padding:12px 14px}
+.due b{font-family:var(--f-display);font-size:30px}
+.handed{display:flex;align-items:center;gap:10px;font-size:16px}
+.bill{display:inline-grid;place-items:center;min-width:64px;height:34px;padding:0 8px;border-radius:4px;background:#5d8a5a;color:#f1f6ea;font-family:var(--f-mono);font-weight:600;border:2px solid #84ad7e}
+.coin{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:50%;background:#b8b2a6;color:#221e17;font-family:var(--f-mono);font-weight:600;font-size:12px;border:2px solid #d6d0c4}
+.coin.p{background:#b5774a;border-color:#d39468;color:#2a160a}
+.display{font-family:var(--f-mono);font-size:34px;font-weight:600;text-align:right;background:var(--screen);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.keypad button{padding:14px;border-radius:9px;background:var(--raise);font-family:var(--f-mono);font-size:20px;font-weight:600}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.quick button{padding:10px 6px;border-radius:9px;border:1px solid var(--good);color:var(--good);font-weight:700;font-family:var(--f-mono)}
+.denoms{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tray{min-height:56px;border:1px dashed var(--line);border-radius:10px;padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tray .hint{color:var(--muted);font-size:13px}
+.err{color:var(--bad);font-weight:600}
+.ok{color:var(--good);font-weight:600}
+.reader{background:var(--screen);border:1px solid var(--line);border-radius:14px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+.reader .st{font-family:var(--f-display);font-size:28px;text-transform:uppercase;letter-spacing:.04em}
+.spin{width:30px;height:30px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.scanner{position:relative;width:180px;height:180px;margin:0 auto;border-radius:14px;overflow:hidden;background:#fff;padding:14px}
+.scanner svg{width:100%;height:100%}
+.scanner::after{content:"";position:absolute;left:0;right:0;height:3px;background:var(--bad);box-shadow:0 0 12px var(--bad);top:10%;animation:scanl 1.1s ease-in-out infinite alternate}
+@keyframes scanl{to{top:88%}}
+
+/* receipt */
+.rcpt{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:640px){.rcpt{grid-template-columns:minmax(0,1fr)}}
+.receipt{background:var(--paper);color:var(--ink);font-family:var(--f-mono);font-size:12.5px;padding:14px;border-radius:3px;line-height:1.5}
+.receipt .c{text-align:center}
+.receipt .r{display:flex;justify-content:space-between;gap:10px}
+.receipt .s{color:var(--ink-soft);padding-left:10px}
+.receipt hr{border:0;border-top:1px dashed var(--ink-soft);margin:7px 0}
+.receipt .g{font-weight:600;font-size:14px}
+.result{display:flex;flex-direction:column;gap:10px}
+.verdict{font-family:var(--f-display);font-size:30px;font-weight:700;text-transform:uppercase;line-height:1}
+.verdict.good{color:var(--good)}.verdict.bad{color:var(--bad)}
+.result ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);background:var(--raise);border:1px solid var(--line);color:var(--fg);padding:10px 16px;border-radius:10px;z-index:40;max-width:calc(100% - 32px);font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast.warn{border-color:var(--accent)}
+.fab{display:none}
+@media (max-width:860px){
+  body{padding-block:12px 96px}
+  .fab{display:flex;position:fixed;left:16px;right:16px;bottom:calc(12px + env(safe-area-inset-bottom,0px));justify-content:space-between;align-items:center;background:var(--accent);color:var(--accent-ink);padding:14px 18px;border-radius:12px;font-weight:700;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><small id="regline">Reg 04 · Trainee</small><b>Box Office &amp; Concessions</b></div>
+    <div class="topr">
+      <div class="stats" id="stats"></div>
+      <div class="seg" role="group" aria-label="Mode">
+        <button data-act="mode" data-v="practice" id="m-practice">Practice guests</button>
+        <button data-act="mode" data-v="free" id="m-free">Free ring</button>
+      </div>
+    </div>
+  </header>
+  <section id="guest"></section>
+  <main class="pos">
+    <section class="menu">
+      <nav class="cats" id="cats" aria-label="Menu categories"></nav>
+      <div id="items"></div>
+    </section>
+    <aside class="order" id="order"></aside>
+  </main>
+</div>
+<button class="fab" id="fab" data-act="fab"></button>
+<div class="backdrop" id="modal" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const TAX=0.0975;
+const $=s=>document.querySelector(s);
+const fmt=c=>(c<0?'−':'')+'$'+(Math.abs(c)/100).toFixed(2);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const list=a=>a.length<2?a.join(''):a.length===2?a.join(' and '):a.slice(0,-1).join(', ')+', and '+a[a.length-1];
+const dur=ms=>{const s=Math.round(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+/* ---------- menu data (practice prices) ---------- */
+const CATS=[['tickets','Tickets'],['popcorn','Popcorn'],['drinks','Drinks'],['icee','ICEE'],['food','Food'],['candy','Candy'],['icecream','Ice Cream'],['merch','Merch']];
+const OT={dine:'Dine-in',togo:'Take-out',delivery:'Delivery'};
+const SZ=(s,m,l)=>({key:'size',label:'Size',opts:[{v:'S',label:'Small',add:s},{v:'M',label:'Medium',add:m},{v:'L',label:'Large',add:l}]});
+const BUTTER={key:'butter',label:'Butter',opts:[{v:'B',label:'Butter'},{v:'N',label:'No butter'}]};
+const JAL={key:'jal',label:'Jalapeños',opts:[{v:'Y',label:'Jalapeños'},{v:'N',label:'No jalapeños'}]};
+const flav=(l,label='Flavor')=>({key:'flavor',label,opts:l.map(x=>({v:x,label:x}))});
+const FOUNTAIN=['Coca-Cola','Diet Coke','Coke Zero','Sprite','Fanta Orange','Dr Pepper',"Barq's Root Beer",'Minute Maid Lemonade'];
+const ICEE=['Blue Raspberry','Cherry','Coca-Cola','Mix (Cherry + Blue)'];
+const CANDY=["M&M's Peanut","Reese's Pieces",'Sour Patch Kids','Skittles','Twizzlers','Milk Duds','Junior Mints','Buncha Crunch'];
+const ITEMS=[
+  {id:'pop',cat:'popcorn',name:'Popcorn',groups:[SZ(729,829,929),BUTTER],hint:'Large = free refill'},
+  {id:'bag',cat:'popcorn',name:'Take-Home Bag',base:649,groups:[BUTTER],hint:'To-go only'},
+  {id:'drink',cat:'drinks',name:'Fountain Drink',groups:[SZ(579,649,699),flav(FOUNTAIN)]},
+  {id:'water',cat:'drinks',name:'Bottled Water',base:479},
+  {id:'icee',cat:'icee',name:'ICEE',groups:[SZ(549,629,679),flav(ICEE)]},
+  {id:'nachos',cat:'food',name:'Nachos',base:749,groups:[JAL]},
+  {id:'hotdog',cat:'food',name:'Hot Dog',base:649},
+  {id:'pretzel',cat:'food',name:'Pretzel Bites',base:729},
+  ...CANDY.map((n,i)=>({id:'candy'+i,cat:'candy',name:n,base:549})),
+  {id:'cup',cat:'icecream',name:'Ice Cream Cup',base:599,groups:[flav(['Vanilla','Chocolate','Strawberry'])]},
+  {id:'sandwich',cat:'icecream',name:'Ice Cream Sandwich',base:499},
+  {id:'tumbler',cat:'merch',name:'Souvenir Cup',base:1299},
+  {id:'tin',cat:'merch',name:'Popcorn Tin',base:1999},
+  {id:'poster',cat:'merch',name:'Movie Poster',base:999},
+  {id:'plush',cat:'merch',name:'Plush Toy',base:1599},
+];
+const ITEM=Object.fromEntries(ITEMS.map(i=>[i.id,i]));
+const MOVIES=[
+  {id:'orbit',title:'Midnight Orbit',rating:'PG-13',run:'2h 08m',times:['12:40','15:30','19:15','21:50']},
+  {id:'lantern',title:'The Lantern Keeper',rating:'PG',run:'1h 52m',times:['11:15','14:00','16:45','19:30']},
+  {id:'hollow',title:'Hollow Creek',rating:'R',run:'1h 47m',times:['13:20','16:10','19:00','22:05']},
+  {id:'kites',title:'Pip & the Paper Kites',rating:'G',run:'1h 34m',times:['10:30','12:50','15:10','17:30']},
+];
+const TT=[{v:'adult',label:'Adult',sub:'Ages 12–61',eve:1150,mat:850},{v:'child',label:'Child',sub:'Ages 2–11',eve:850,mat:750},{v:'senior',label:'Senior',sub:'Ages 62+',eve:850,mat:750}];
+const isMat=t=>parseInt(t)<16;
+const fmtTime=t=>{let [h,m]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';h=h%12||12;return `${h}:${String(m).padStart(2,'0')} ${ap}`};
+const MEMBERS=[
+  {id:'4418 2290',name:'Dana Whitfield',points:1260,rewards:['popS','off3']},
+  {id:'2093 7781',name:'Marcus Lee',points:310,rewards:['drinkS']},
+  {id:'7751 0346',name:'Priya Shah',points:845,rewards:['popS','candy']},
+  {id:'5520 9914',name:'Tom Becker',points:90,rewards:[]},
+  {id:'3307 1158',name:'Keisha Monroe',points:2015,rewards:['drinkS','candy','off3']},
+];
+const maxUnit=(cart,f)=>Math.max(0,...cart.filter(f).map(l=>l.unit));
+const REW={
+  popS:{label:'Free Small Popcorn',need:'Add a popcorn first',amt:c=>Math.min(729,maxUnit(c,l=>l.itemId==='pop'))},
+  drinkS:{label:'Free Small Drink',need:'Add a fountain drink first',amt:c=>Math.min(579,maxUnit(c,l=>l.itemId==='drink'))},
+  candy:{label:'Free Candy',need:'Add a candy first',amt:c=>Math.min(549,maxUnit(c,l=>l.cat==='candy'))},
+  off3:{label:'$3 Off Concessions',need:'Needs at least $3 in food or drinks',amt:c=>c.filter(l=>!['tickets','merch'].includes(l.cat)).reduce((a,l)=>a+l.unit*l.qty,0)>=300?300:0},
+};
+
+function makeLine(item,sel){
+  let unit=item.base||0,parts=[],size='';
+  (item.groups||[]).forEach(g=>{const o=g.opts.find(o=>o.v===sel[g.key]);unit+=o.add||0;if(g.key==='size')size=o.label;else parts.push(o.label)});
+  return {key:[item.id,...(item.groups||[]).map(g=>sel[g.key])].join('|'),itemId:item.id,cat:item.cat,name:(size?size+' ':'')+item.name,detail:parts.join(' · '),unit};
+}
+function ticketLine(m,time,type){
+  const t=TT.find(x=>x.v===type),mat=isMat(time);
+  return {key:`tkt|${m.id}|${time}|${type}`,itemId:'tkt',cat:'tickets',name:`${t.label} Ticket${mat?' · Matinee':''}`,detail:`${m.title} · ${fmtTime(time)}`,unit:mat?t.mat:t.eve,rated:m.rating};
+}
+
+/* ---------- state ---------- */
+const S={mode:'practice',cat:'tickets',cart:[],orderType:'dine',member:null,rewards:[],cust:null,mistakes:[],start:0,modal:null,saleNo:1041,react:null};
+function loadStats(){try{return JSON.parse(localStorage.getItem('regStats'))||null}catch(e){return null}}
+S.stats=loadStats()||{n:0,perfect:0,times:[],best:0};
+function saveStats(){try{localStorage.setItem('regStats',JSON.stringify(S.stats))}catch(e){}}
+
+function totals(cart=S.cart,rewards=S.rewards){
+  const sub=cart.reduce((a,l)=>a+l.unit*l.qty,0);
+  const disc=rewards.reduce((a,r)=>a+REW[r].amt(cart),0);
+  const tax=Math.round((sub-disc)*TAX);
+  return {sub,disc,tax,total:sub-disc+tax};
+}
+function addLine(line,q=1){
+  const e=S.cart.find(l=>l.key===line.key);
+  if(e)e.qty+=q;else S.cart.push({...line,qty:q});
+  onCartChange();
+}
+function onCartChange(){
+  const drop=S.rewards.filter(r=>REW[r].amt(S.cart)===0);
+  if(drop.length){S.rewards=S.rewards.filter(r=>!drop.includes(r));toast(`Removed ${drop.map(r=>REW[r].label).join(', ')}: item no longer on the order`,'warn')}
+  render();
+  maybeTwist();
+}
+
+/* ---------- practice guests ---------- */
+const NAMES=['Avery','Jordan','Maya','Luis','Hannah','Caleb','Tasha','Owen','Brianna','Eli','Grace','Darius','Lena','Cody','Rosa','Wyatt'];
+const QW=['','a','two','three','four'];
+const SW={S:'small',M:'medium',L:'large'};
+const G=(id,sel={})=>makeLine(ITEM[id],sel);
+const lc=s=>s==='Coca-Cola'?s:s.toLowerCase();
+const GENS={
+  pop:()=>{const sel={size:pick(['S','M','L','L']),butter:pick(['B','B','N'])},q=Math.random()<.2?2:1;return{kind:'pop',id:'pop',sel,q,say:`${QW[q]} ${SW[sel.size]} popcorn${q>1?'s, both':''} ${sel.butter==='B'?'with butter':'with no butter'}`}},
+  drink:()=>{const sel={size:pick(['S','M','L']),flavor:pick(FOUNTAIN)},q=Math.random()<.25?2:1;return{kind:'drink',id:'drink',sel,q,say:`${QW[q]} ${SW[sel.size]} ${sel.flavor}${q>1?'s':''}`}},
+  icee:()=>{const sel={size:pick(['S','M','L']),flavor:pick(ICEE)};return{kind:'icee',id:'icee',sel,q:1,say:`a ${SW[sel.size]} ${sel.flavor.startsWith('Mix')?'mixed cherry and blue raspberry':lc(sel.flavor)} ICEE`}},
+  nachos:()=>{const sel={jal:pick(['Y','N'])};return{kind:'nachos',id:'nachos',sel,q:1,say:`nachos ${sel.jal==='Y'?'with jalapeños':'with no jalapeños'}`}},
+  hotdog:()=>{const q=Math.random()<.3?2:1;return{kind:'hotdog',id:'hotdog',sel:{},q,say:q>1?'two hot dogs':'a hot dog'}},
+  pretzel:()=>({kind:'pretzel',id:'pretzel',sel:{},q:1,say:'an order of pretzel bites'}),
+  water:()=>({kind:'water',id:'water',sel:{},q:1,say:'a bottled water'}),
+  candy:()=>{const i=ri(0,CANDY.length-1),q=Math.random()<.2?2:1;return{kind:'candy',id:'candy'+i,sel:{},q,say:`${q>1?'two boxes':'a box'} of ${CANDY[i]}`}},
+  cup:()=>{const f=pick(['Vanilla','Chocolate','Strawberry']);return{kind:'cup',id:'cup',sel:{flavor:f},q:1,say:`a ${f.toLowerCase()} ice cream cup`}},
+  sandwich:()=>({kind:'sandwich',id:'sandwich',sel:{},q:1,say:'an ice cream sandwich'}),
+  merch:()=>{const m=pick([['tumbler','one of the souvenir cups'],['tin','a popcorn tin'],['poster','a movie poster'],['plush','one of the plush toys']]);return{kind:'merch',id:m[0],sel:{},q:1,say:m[1]}},
+  bag:()=>{const sel={butter:pick(['B','N'])};return{kind:'bag',id:'bag',sel,q:1,say:`a take-home bag of popcorn ${sel.butter==='B'?'with butter':'with no butter'}`}},
+};
+function genCustomer(){
+  const r=Math.random(),ot=r<.66?'dine':r<.83?'togo':'delivery';
+  const exp=new Map();
+  const add=(line,q)=>{const e=exp.get(line.key);if(e)e.qty+=q;else exp.set(line.key,{...line,qty:q})};
+  const dec=key=>{const e=exp.get(key);e.qty--;if(!e.qty)exp.delete(key)};
+  const says=[];let hasTix=false;
+  if(ot==='dine'&&Math.random()<.62){
+    hasTix=true;const m=pick(MOVIES),t=pick(m.times);
+    let c={adult:ri(1,2),child:m.rating==='R'?0:(Math.random()<.4?ri(1,2):0),senior:0};
+    if(Math.random()<.18)c={adult:0,child:0,senior:ri(1,2)};
+    const parts=[];
+    TT.forEach(tt=>{const n=c[tt.v];if(!n)return;add(ticketLine(m,t,tt.v),n);parts.push(`${n===1?'one':QW[n]} ${tt.v==='child'?(n>1?'kids':'kid'):tt.v+(n>1?'s':'')}`)});
+    says.push(`${list(parts)} for ${m.title} at ${fmtTime(t).replace(/ (AM|PM)/,'')}`);
+  }
+  const pool=ot==='dine'?['pop','pop','drink','drink','icee','nachos','hotdog','pretzel','candy','candy','cup','sandwich','water','merch']:['pop','drink','drink','icee','nachos','hotdog','pretzel','candy','cup','water','bag','bag'];
+  const nC=hasTix?ri(0,3):ri(1,4);const used=new Set(),gens=[];
+  for(const k of shuffle(pool)){if(gens.length>=nC)break;if(used.has(k))continue;used.add(k);const g=GENS[k]();gens.push(g);add(G(g.id,g.sel),g.q);says.push(g.say)}
+  let twist=null;
+  const tw=gens.filter(g=>g.q===1&&(g.kind==='pop'||g.kind==='drink'));
+  if(ot!=='delivery'&&tw.length&&Math.random()<.35){
+    const g=pick(tw),ns={...g.sel};let say;
+    if(g.kind==='pop'){if(g.sel.size==='L'||Math.random()<.5){ns.butter=g.sel.butter==='B'?'N':'B';say=`Oh wait, actually can you make that popcorn ${ns.butter==='B'?'with butter':'no butter'}?`}else{ns.size='L';say='Actually, can you bump the popcorn up to a large?'}}
+    else{ns.flavor=pick(FOUNTAIN.filter(f=>f!==g.sel.flavor));say=`Sorry, can I switch the ${g.sel.flavor} to a ${ns.flavor}?`}
+    dec(G(g.id,g.sel).key);add(G(g.id,ns),1);twist={say,shown:false};
+  }
+  const cartArr=[...exp.values()];
+  let member=null,rewards=[];
+  if(ot!=='delivery'&&Math.random()<.45){member=pick(MEMBERS);const sub=cartArr.reduce((a,l)=>a+l.unit*l.qty,0);const el=member.rewards.filter(x=>{const v=REW[x].amt(cartArr);return v>0&&sub-v>0});if(el.length&&Math.random()<.65)rewards=[pick(el)]}
+  const pay=ot==='delivery'?'app':(Math.random()<.42?'cash':'card');
+  const greet=pick(['Hi!','Hey there.','Hi, how are you?','Hello!','Hey!']);
+  let speech=`${greet} Can I get ${list(says)}?`;
+  if(ot==='togo')speech+=pick([' This is all to go.',' It\'s to go, we\'re not seeing a movie.',' All to take home, please.']);
+  if(member)speech+=` I've got the rewards app, here's my code.${rewards.length?` Can I use my ${REW[rewards[0]].label.toLowerCase()}?`:''}`;
+  if(pay==='cash')speech+=pick([' I\'ll pay cash.',' Paying with cash.']);
+  if(pay==='card')speech+=pick([' I\'ll use my card.',' Card, please.']);
+  return {name:pick(NAMES),ot,exp,member,rewards,pay,twist,speech,order:'D-'+ri(1000,9999),eta:ri(3,9),hand:null};
+}
+function newCustomer(){
+  clearSale();S.cust=genCustomer();S.mistakes=[];S.react=null;S.start=Date.now();
+  if(S.cust.ot==='delivery'&&S.cat==='tickets')S.cat='popcorn';
+  render();
+}
+function clearSale(){S.cart=[];S.orderType='dine';S.member=null;S.rewards=[]}
+function maybeTwist(){
+  const c=S.cust;if(S.mode!=='practice'||!c||!c.twist||c.twist.shown||!S.cart.length)return;
+  c.twist.shown=true;setTimeout(()=>{renderGuest();},900);
+}
+function mistake(m){if(!S.mistakes.includes(m))S.mistakes.push(m)}
+function react(t){S.react=t;renderGuest()}
+
+/* ---------- QR ---------- */
+function qrSvg(seed){
+  let x=0;for(const ch of seed)x=(x*31+ch.charCodeAt(0))>>>0;const rnd=()=>((x=(x*1103515245+12345)>>>0)>>>8)/16777216;
+  const n=21;let r='';const fin=(a,b)=>`<rect x="${a}" y="${b}" width="7" height="7" fill="#111"/><rect x="${a+1}" y="${b+1}" width="5" height="5" fill="#fff"/><rect x="${a+2}" y="${b+2}" width="3" height="3" fill="#111"/>`;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){if((i<8&&j<8)||(i<8&&j>12)||(i>12&&j<8))continue;if(rnd()<.48)r+=`<rect x="${j}" y="${i}" width="1" height="1" fill="#111"/>`}
+  return `<svg viewBox="-1 -1 23 23" xmlns="http://www.w3.org/2000/svg"><rect x="-1" y="-1" width="23" height="23" fill="#fff"/>${r}${fin(0,0)}${fin(14,0)}${fin(0,14)}</svg>`;
+}
+
+/* ---------- render ---------- */
+function render(){renderTop();renderGuest();renderCats();renderItems();renderOrder()}
+function renderTop(){
+  $('#m-practice').setAttribute('aria-pressed',S.mode==='practice');$('#m-free').setAttribute('aria-pressed',S.mode==='free');
+  const st=S.stats,avg=st.times.length?st.times.reduce((a,b)=>a+b,0)/st.times.length:0;
+  $('#stats').innerHTML=S.mode==='practice'?`<span>Guests <b>${st.n}</b></span><span>Perfect <b>${st.perfect}</b></span><span>Avg <b>${st.times.length?dur(avg):'–'}</b></span><span>Best <b>${st.best?dur(st.best):'–'}</b></span>${st.n?'<button class="linkbtn" data-act="reset">reset</button>':''}`:'';
+}
+function renderGuest(){
+  const g=$('#guest');
+  if(S.mode!=='practice'){g.innerHTML=`<div class="freenote">Free ring: ring up anything to learn where the keys are. Switch to <b>Practice guests</b> when you want customers and a timer.</div>`;return}
+  const c=S.cust;
+  let body;
+  if(c.ot==='delivery'){
+    body=`<div class="gname"><b>Delivery tablet</b> · new order printed</div>
+    <div class="slip"><div class="h"><span>DELIVERY ${c.order}</span><span>PAID IN APP</span></div>
+    ${[...c.exp.values()].map(l=>`<div>${l.qty}x ${esc(l.name)}${l.detail?' – '+esc(l.detail):''}</div>`).join('')}
+    <div class="f">Driver arriving in ${c.eta} min · bag &amp; seal</div></div>`;
+  }else{
+    body=`<div class="gname"><b>${c.name}</b> at the counter</div><div class="bubble">${esc(c.speech)}</div>
+    ${c.member?`<div class="phone">${qrSvg(c.member.id)}<span>Showing rewards code<br>on phone</span></div>`:''}
+    ${c.twist&&c.twist.shown?`<div class="bubble twist">${esc(c.twist.say)}</div>`:''}
+    ${S.react?`<div class="bubble react">${esc(S.react)}</div>`:''}`;
+  }
+  g.innerHTML=`<div class="guest"><div class="av">${c.ot==='delivery'?'D':c.name[0]}</div><div class="gbody">${body}</div>
+  <div class="gside"><span class="timer" id="gtime">${dur(Date.now()-S.start)}</span><button class="smallbtn" data-act="skip">Skip guest</button></div></div>`;
+}
+function renderCats(){
+  $('#cats').innerHTML=CATS.map(([id,l])=>`<button class="cat" style="--c:var(--c-${id})" data-act="cat" data-v="${id}" aria-pressed="${S.cat===id}">${l}</button>`).join('');
+}
+function renderItems(){
+  const el=$('#items');
+  if(S.cat==='tickets'){
+    if(S.orderType==='delivery'){el.innerHTML=`<div class="empty">Delivery orders can't include tickets. Switch the order type to ring tickets.</div>`;return}
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px">${MOVIES.map(m=>`<div class="movie"><div class="mhead"><span class="rating">${m.rating}</span><b>${esc(m.title)}</b><span class="muted mono" style="font-size:12px">${m.run}</span></div>
+      <div class="times">${m.times.map(t=>`<button class="time" data-act="time" data-m="${m.id}" data-t="${t}">${fmtTime(t)}${isMat(t)?'<small>MATINEE</small>':'<small>&nbsp;</small>'}</button>`).join('')}</div></div>`).join('')}</div>`;
+    return;
+  }
+  el.innerHTML=`<div class="grid">${ITEMS.filter(i=>i.cat===S.cat).map(i=>{
+    const price=i.groups&&i.groups[0].key==='size'?'from '+fmt(i.groups[0].opts[0].add):fmt(i.base);
+    return `<button class="tile" style="--c:var(--c-${i.cat})" data-act="item" data-id="${i.id}"><b>${esc(i.name)}</b><div>${i.hint?`<em>${i.hint}</em><br>`:''}<span>${price}</span></div></button>`}).join('')}</div>`;
+}
+function renderOrder(){
+  const T=totals(),n=S.cart.reduce((a,l)=>a+l.qty,0),del=S.orderType==='delivery';
+  const m=S.member;
+  const memberHtml=del?`<div class="muted" style="font-size:13px">Delivery orders don't earn rewards points.</div>`:
+    m?`<div class="mrow"><b>${esc(m.name)}</b><span class="mono muted">${m.points.toLocaleString()} pts</span></div>
+      <div class="mono muted" style="font-size:12px">Member #${m.id}</div>
+      ${m.rewards.length?`<div class="chips">${m.rewards.map(r=>`<button class="chip" data-act="rew" data-v="${r}" aria-pressed="${S.rewards.includes(r)}">${REW[r].label}</button>`).join('')}</div>`:'<div class="muted" style="font-size:13px">No rewards available yet.</div>'}
+      <button class="linkbtn" style="align-self:flex-start" data-act="unmember">Remove member</button>`:
+    `<button class="scan" data-act="scan">▣ Scan member QR</button>`;
+  $('#order').innerHTML=`
+   <div class="ohead"><b>Order</b><span class="mono muted">#${S.saleNo}</span></div>
+   <div class="seg ot" role="group" aria-label="Order type">${Object.entries(OT).map(([k,l])=>`<button data-act="ot" data-v="${k}" aria-pressed="${S.orderType===k}">${l}</button>`).join('')}</div>
+   <div class="member">${memberHtml}</div>
+   <div class="lines">${S.cart.length?S.cart.map((l,i)=>`<div class="line"><div><div class="nm">${esc(l.name)}</div>${l.detail?`<div class="dt">${esc(l.detail)}</div>`:''}</div>
+     <div class="qty"><button data-act="lq" data-i="${i}" data-d="-1" aria-label="Less">−</button><span class="mono">${l.qty}</span><button data-act="lq" data-i="${i}" data-d="1" aria-label="More">+</button></div>
+     <div class="pr mono">${fmt(l.unit*l.qty)}</div></div>`).join('')+S.rewards.map(r=>`<div class="line disc"><div class="nm">${REW[r].label}</div><div></div><div class="pr mono">${fmt(-REW[r].amt(S.cart))}</div></div>`).join('')
+     :`<div class="empty" style="border:0;padding:18px 0">No items yet. Tap the menu to ring them in.</div>`}</div>
+   <div class="tot mono"><div><span>Subtotal</span><span>${fmt(T.sub)}</span></div>${T.disc?`<div class="disc"><span>Rewards</span><span>${fmt(-T.disc)}</span></div>`:''}<div><span>Tax 9.75%</span><span>${fmt(T.tax)}</span></div>
+   <div class="grand"><span>Total</span><span>${fmt(T.total)}</span></div></div>
+   <div class="pay">${del?`<button class="paybtn p-app" data-act="app" ${n?'':'disabled'}>Close · Paid in app</button>`:
+     `<button class="paybtn p-cash" data-act="cash" ${n?'':'disabled'}>Cash</button><button class="paybtn p-card" data-act="card" ${n?'':'disabled'}>Card</button>`}</div>
+   ${n?'<button class="void" data-act="void">Void order</button>':''}`;
+  $('#fab').innerHTML=`<span>Order · ${n} item${n===1?'':'s'}</span><span class="mono">${fmt(T.total)} ↓</span>`;
+}
+
+/* ---------- modals ---------- */
+function openModal(m){S.modal=m;renderModal()}
+function closeModal(){S.modal=null;$('#modal').hidden=true}
+function renderModal(){
+  const m=S.modal,sh=$('#sheet');if(!m){closeModal();return}
+  $('#modal').hidden=false;sh.className='sheet'+(m.kind==='receipt'?' wide':'');
+  const head=(t,x=true)=>`<div class="shead"><h2>${t}</h2>${x?'<button class="x" data-act="close" aria-label="Close">✕</button>':''}</div>`;
+  if(m.kind==='mod'){
+    const it=ITEM[m.id];const ready=it.groups.every(g=>m.sel[g.key]);const price=ready?makeLine(it,m.sel).unit*m.q:null;
+    sh.innerHTML=head(esc(it.name))+it.groups.map(g=>`<div class="group"><label>${g.label}</label><div class="opts">${g.opts.map(o=>`<button class="opt" data-act="opt" data-g="${g.key}" data-v="${esc(o.v)}" aria-pressed="${m.sel[g.key]===o.v}">${esc(o.label)}${o.add?`<small>${fmt((it.base||0)+o.add)}</small>`:''}</button>`).join('')}</div></div>`).join('')+
+    `<div class="trow"><span>Quantity</span><div class="stepper"><button data-act="mq" data-d="-1">−</button><span class="mono">${m.q}</span><button data-act="mq" data-d="1">+</button></div></div>
+    <button class="big" data-act="madd" ${ready?'':'disabled'}>${ready?'Add · '+fmt(price):'Choose '+it.groups.filter(g=>!m.sel[g.key]).map(g=>g.label.toLowerCase()).join(' & ')}</button>`;
+  }
+  if(m.kind==='tix'){
+    const mv=MOVIES.find(x=>x.id===m.m),mat=isMat(m.t);const tot=TT.reduce((a,t)=>a+(mat?t.mat:t.eve)*m.c[t.v],0),cnt=Object.values(m.c).reduce((a,b)=>a+b,0);
+    sh.innerHTML=head(esc(mv.title))+`<div class="muted">${mv.rating} · ${fmtTime(m.t)}${mat?' · Matinee pricing':''}</div>`+
+    TT.map(t=>`<div class="trow"><div><b>${t.label}</b> <span class="mono muted">${fmt(mat?t.mat:t.eve)}</span><div class="muted" style="font-size:12px">${t.sub}</div></div><div class="stepper"><button data-act="tq" data-v="${t.v}" data-d="-1">−</button><span class="mono">${m.c[t.v]}</span><button data-act="tq" data-v="${t.v}" data-d="1">+</button></div></div>`).join('')+
+    `<button class="big" data-act="tadd" ${cnt?'':'disabled'}>${cnt?`Add ${cnt} ticket${cnt>1?'s':''} · ${fmt(tot)}`:'Choose tickets'}</button>`;
+  }
+  if(m.kind==='scan'){
+    sh.innerHTML=head('Scanning',false)+`<div class="scanner">${qrSvg(m.member.id)}</div><p class="muted" style="text-align:center;margin:0">Hold the guest's phone under the scanner…</p>`;
+  }
+  if(m.kind==='cash'){
+    const T=totals(),c=S.cust,pr=S.mode==='practice';
+    if(m.step==='tender'){
+      const v=parseInt(m.s||'0');
+      sh.innerHTML=head('Cash')+`<div class="due"><span>Total due</span><b class="mono">${fmt(T.total)}</b></div>`+
+      (pr?`<div class="handed">Guest hands you ${moneyPieces(c.hand)}</div>`:'')+
+      `<div><div class="muted" style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Cash tendered</div><div class="display">${fmt(v)}</div></div>
+      <div class="quick">${quickTenders(T.total).map(q=>`<button data-act="tquick" data-v="${q}">${q===T.total?'Exact':fmt(q).replace('.00','')}</button>`).join('')}</div>
+      <div class="keypad">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(k=>`<button data-act="key" data-v="${k}">${k}</button>`).join('')}</div>
+      ${m.err?`<div class="err">${m.err}</div>`:''}
+      <button class="big" data-act="tnext" ${v?'':'disabled'}>Enter tender</button>`;
+    }else{
+      const sum=m.tray.reduce((a,b)=>a+b,0);
+      sh.innerHTML=head('Count back change')+`<div class="due"><span>Change due</span><b class="mono">${fmt(m.change)}</b></div>
+      <div class="muted" style="font-size:13px">Tap bills and coins to pull them from the drawer. Tap one in the tray to put it back.</div>
+      <div class="denoms">${DENOMS.map(d=>`<button data-act="den" data-v="${d}" aria-label="${fmt(d)}">${piece(d)}</button>`).join('')}</div>
+      <div class="tray">${m.tray.length?m.tray.map((d,i)=>`<button data-act="trayrm" data-i="${i}">${piece(d)}</button>`).join(''):'<span class="hint">Change tray is empty</span>'}</div>
+      ${m.show?`<div class="mono muted">In tray: ${fmt(sum)}</div>`:'<button class="linkbtn" style="align-self:flex-start" data-act="showsum">Show what\'s in the tray</button>'}
+      ${m.err?`<div class="err">${m.err}</div>`:''}
+      <button class="big" data-act="handchange" ${m.tray.length?'':'disabled'}>Hand change to guest</button>
+      ${pr?'':'<button class="big alt" data-act="skipcount">Skip counting</button>'}`;
+    }
+  }
+  if(m.kind==='card'){
+    const T=totals();
+    sh.innerHTML=head('Card',m.step==='prompt')+`<div class="due"><span>Total</span><b class="mono">${fmt(T.total)}</b></div>
+    <div class="reader">${m.step==='prompt'?`<div class="st">Tap · Insert · Swipe</div><div class="muted">Card reader is ready for the guest</div>`:m.step==='proc'?`<div class="spin"></div><div class="st">Processing</div>`:`<div class="st ok">Approved</div><div class="mono muted">AUTH ${ri(100000,999999)}</div>`}</div>
+    ${m.step==='prompt'?'<button class="big" data-act="cardtap">Guest taps card</button>':''}`;
+  }
+  if(m.kind==='receipt')sh.innerHTML=receiptHtml(m.sale);
+}
+const DENOMS=[10000,5000,2000,1000,500,100,25,10,5,1];
+const piece=d=>d>=100?`<span class="bill">$${d/100}</span>`:`<span class="coin${d===1?' p':''}">${d}¢</span>`;
+function breakdown(c){const out=[];for(const d of DENOMS)while(c>=d){out.push(d);c-=d}return out}
+function moneyPieces(c){return breakdown(c).map(piece).join(' ')}
+function quickTenders(t){const s=new Set([t,Math.ceil(t/100)*100,Math.ceil(t/500)*500,Math.ceil(t/1000)*1000,Math.ceil(t/2000)*2000]);[5000,10000].forEach(v=>{if(v>t)s.add(v)});return [...s].sort((a,b)=>a-b).slice(0,6)}
+function handFor(t){
+  const r=Math.random();
+  if(r<.12)return t;
+  if(r<.3&&t%100)return Math.ceil(t/2000)*2000+t%100;
+  if(r<.5)return Math.ceil(t/500)*500;
+  if(r<.8)return Math.ceil(t/2000)*2000;
+  return t<5000?5000:Math.ceil(t/10000)*10000;
+}
+function receiptHtml(s){
+  const now=new Date();
+  const lines=s.lines.map(l=>`<div class="r"><span>${l.qty} ${esc(l.name)}</span><span>${fmt(l.unit*l.qty)}</span></div>${l.detail?`<div class="s">${esc(l.detail)}</div>`:''}`).join('');
+  const rew=s.rewards.map(r=>`<div class="r"><span>${REW[r].label}</span><span>${fmt(-REW[r].amt(s.lines))}</span></div>`).join('');
+  const pay=s.pay.method==='cash'?`<div class="r"><span>Cash</span><span>${fmt(s.pay.tendered)}</span></div><div class="r"><span>Change</span><span>${fmt(s.pay.change)}</span></div>`:s.pay.method==='card'?`<div class="r"><span>Card ****${ri(1000,9999)}</span><span>${fmt(s.T.total)}</span></div>`:`<div class="r"><span>Paid in delivery app</span><span>${fmt(s.T.total)}</span></div>`;
+  const rc=`<div class="receipt"><div class="c"><b>BOX OFFICE &amp; CONCESSIONS</b><br>Reg 04 · Sale #${s.no}<br>${now.toLocaleDateString()} ${now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}<br>${OT[s.orderType].toUpperCase()}</div><hr>${lines}${rew}<hr>
+   <div class="r"><span>Subtotal</span><span>${fmt(s.T.sub-s.T.disc)}</span></div><div class="r"><span>Tax</span><span>${fmt(s.T.tax)}</span></div><div class="r g"><span>TOTAL</span><span>${fmt(s.T.total)}</span></div><hr>${pay}
+   ${s.member?`<hr><div>Member ${esc(s.member.name)}<br>Points earned: ${Math.floor(s.T.total/100)}</div>`:''}<hr><div class="c">Enjoy the show!</div></div>`;
+  let res;
+  if(s.res){
+    const e=s.res.errs;
+    res=`<div class="result"><div class="verdict ${e.length?'bad':'good'}">${e.length?`${e.length} thing${e.length>1?'s':''} to fix`:'Perfect order'}</div>
+     <div class="mono">Time: <b>${dur(s.res.ms)}</b>${!e.length&&S.stats.best===s.res.ms?' · new best!':''}</div>
+     ${e.length?`<ul>${e.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<div class="muted">Every item, the order type, rewards, and payment were right.</div>'}
+     ${s.pay.method==='cash'&&s.pay.change?`<div class="${s.pay.optimal?'ok':'muted'}">${s.pay.optimal?'Change counted with the fewest bills and coins.':`Change was right. Fewest pieces would be: ${breakdown(s.pay.change).map(d=>d>=100?'$'+d/100:d+'¢').join(', ')}`}</div>`:''}
+     <button class="big" data-act="next">Next guest</button></div>`;
+  }else res=`<div class="result"><div class="verdict good">Sale complete</div><button class="big" data-act="next">New sale</button></div>`;
+  return `<div class="shead"><h2>Receipt</h2></div><div class="rcpt">${rc}${res}</div>`;
+}
+
+/* ---------- pay ---------- */
+const PAYWORD={cash:'paying cash',card:'paying with a card',app:'already paid in the delivery app'};
+function startPay(method){
+  if(!S.cart.length)return;
+  if(S.mode==='practice'&&S.cust.pay!==method){
+    mistake(`Started a ${method} payment, but the guest was ${PAYWORD[S.cust.pay]}`);
+    react(S.cust.pay==='app'?'(This is a delivery order. It was already paid in the app.)':`Oh, I'm ${PAYWORD[S.cust.pay]}!`);return;
+  }
+  S.react=null;
+  if(method==='cash'){
+    const t=totals().total;if(S.mode==='practice'&&(S.cust.hand==null||S.cust.hand<t))S.cust.hand=handFor(t);
+    openModal({kind:'cash',step:'tender',s:''});
+  }else openModal({kind:'card',step:'prompt'});
+}
+function complete(pay){
+  const T=totals();
+  let res=null;
+  if(S.mode==='practice'){
+    res=evaluate(pay);const st=S.stats;st.n++;st.times.push(res.ms);if(st.times.length>20)st.times.shift();
+    if(!res.errs.length){st.perfect++;if(!st.best||res.ms<st.best)st.best=res.ms}saveStats();
+  }
+  const sale={lines:S.cart.map(l=>({...l})),T,pay,member:S.orderType==='delivery'?null:S.member,rewards:S.rewards.slice(),orderType:S.orderType,res,no:S.saleNo};
+  S.saleNo++;openModal({kind:'receipt',sale});renderTop();
+}
+function evaluate(pay){
+  const c=S.cust,errs=[...S.mistakes],got=new Map(S.cart.map(l=>[l.key,l]));
+  const lab=l=>l.name+(l.detail?` (${l.detail})`:'');
+  new Set([...c.exp.keys(),...got.keys()]).forEach(k=>{const e=c.exp.get(k),g=got.get(k);
+    if(e&&!g)errs.push(`Missing: ${e.qty} × ${lab(e)}`);
+    else if(g&&!e)errs.push(`Not ordered: ${g.qty} × ${lab(g)}`);
+    else if(e.qty!==g.qty)errs.push(`${lab(e)}: rang ${g.qty}, guest wanted ${e.qty}`);});
+  if(S.orderType!==c.ot)errs.push(`Order type was ${OT[S.orderType]}, should be ${OT[c.ot]}`);
+  if(c.member&&!S.member)errs.push(`Didn't scan ${c.member.name.split(' ')[0]}'s rewards code`);
+  c.rewards.forEach(r=>{if(!S.rewards.includes(r))errs.push(`Didn't apply the ${REW[r].label} reward`)});
+  S.rewards.forEach(r=>{if(!c.rewards.includes(r))errs.push(`Applied ${REW[r].label}, but the guest didn't ask to use it`)});
+  if(pay.method==='app'&&c.pay!=='app')errs.push('Closed it as paid in app, but the guest was paying at the counter');
+  return {errs,ms:Date.now()-S.start};
+}
+
+/* ---------- events ---------- */
+let toastT;
+function toast(t,cls=''){const el=$('#toast');el.textContent=t;el.className='toast '+cls;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,2600)}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');
+  if(!b){if(e.target.id==='modal'&&S.modal&&['mod','tix'].includes(S.modal.kind))closeModal();return}
+  const a=b.dataset.act,v=b.dataset.v,m=S.modal;
+  switch(a){
+    case 'mode':if(S.mode===v)break;S.mode=v;if(v==='practice')newCustomer();else{clearSale();render()}break;
+    case 'reset':S.stats={n:0,perfect:0,times:[],best:0};saveStats();renderTop();break;
+    case 'skip':newCustomer();break;
+    case 'cat':S.cat=v;renderCats();renderItems();break;
+    case 'item':{const it=ITEM[b.dataset.id];
+      if(it.id==='bag'&&S.orderType==='dine')toast('Take-home bags can\'t be eaten in the auditorium. Ring the order as Take-out.','warn');
+      if(it.groups)openModal({kind:'mod',id:it.id,sel:{},q:1});else{addLine(makeLine(it,{}));toast(`Added ${it.name}`)}break;}
+    case 'opt':m.sel[b.dataset.g]=v;renderModal();break;
+    case 'mq':m.q=Math.max(1,m.q+ +b.dataset.d);renderModal();break;
+    case 'madd':{const l=makeLine(ITEM[m.id],m.sel);closeModal();addLine(l,m.q);break;}
+    case 'time':openModal({kind:'tix',m:b.dataset.m,t:b.dataset.t,c:{adult:0,child:0,senior:0}});break;
+    case 'tq':m.c[v]=Math.max(0,m.c[v]+ +b.dataset.d);renderModal();break;
+    case 'tadd':{const mv=MOVIES.find(x=>x.id===m.m);closeModal();
+      TT.forEach(t=>{if(m.c[t.v]){const l=ticketLine(mv,m.t,t.v),ex=S.cart.find(x=>x.key===l.key);if(ex)ex.qty+=m.c[t.v];else S.cart.push({...l,qty:m.c[t.v]})}});
+      if(mv.rating==='R'&&m.c.child)toast('Rated R: kids under 17 need a parent or guardian with them.','warn');
+      onCartChange();break;}
+    case 'lq':{const l=S.cart[+b.dataset.i];l.qty+= +b.dataset.d;if(l.qty<=0)S.cart.splice(+b.dataset.i,1);onCartChange();break;}
+    case 'ot':
+      if(v==='delivery'&&S.cart.some(l=>l.cat==='tickets')){toast('Delivery orders can\'t include tickets. Remove them first.','warn');break}
+      S.orderType=v;if(v==='delivery'){S.member=null;S.rewards=[];if(S.cat==='tickets')S.cat='popcorn'}render();break;
+    case 'scan':{
+      let mem;
+      if(S.mode==='practice'){if(!S.cust.member){toast('This guest hasn\'t shown a rewards code.','warn');break}mem=S.cust.member}else mem=pick(MEMBERS);
+      openModal({kind:'scan',member:mem});setTimeout(()=>{S.member=mem;S.rewards=[];closeModal();toast(`Member found: ${mem.name}`);render()},1300);break;}
+    case 'unmember':S.member=null;S.rewards=[];render();break;
+    case 'rew':
+      if(S.rewards.includes(v))S.rewards=S.rewards.filter(x=>x!==v);
+      else if(REW[v].amt(S.cart)>0)S.rewards.push(v);else{toast(REW[v].need,'warn');break}
+      renderOrder();break;
+    case 'void':clearSale();toast('Order voided');render();break;
+    case 'cash':startPay('cash');break;
+    case 'card':startPay('card');break;
+    case 'app':complete({method:'app'});break;
+    case 'key':m.err='';if(v==='⌫')m.s=m.s.slice(0,-1);else if((m.s+v).length<=7)m.s=(m.s+v).replace(/^0+/,'');renderModal();break;
+    case 'tquick':m.err='';m.s=String(+v);renderModal();break;
+    case 'tnext':{const t=parseInt(m.s||'0'),T=totals().total;
+      if(t<T){m.err='That\'s less than the total. Check what the guest handed you.';renderModal();break}
+      if(S.mode==='practice'&&t!==S.cust.hand){mistake('Keyed in the wrong cash tendered amount');m.err=`Check that amount. The guest handed you ${fmt(S.cust.hand)}.`;renderModal();break}
+      if(t===T){closeModal();complete({method:'cash',tendered:t,change:0});break}
+      Object.assign(m,{step:'change',tendered:t,change:t-T,tray:[],err:'',show:false});renderModal();break;}
+    case 'den':m.err='';m.tray.push(+v);m.tray.sort((a,b)=>b-a);renderModal();break;
+    case 'trayrm':m.err='';m.tray.splice(+b.dataset.i,1);renderModal();break;
+    case 'showsum':m.show=true;renderModal();break;
+    case 'handchange':{const sum=m.tray.reduce((a,b)=>a+b,0);
+      if(sum!==m.change){if(S.mode==='practice')mistake('Counted the change wrong at least once');m.err=`That's ${fmt(sum)}. The guest should get ${fmt(m.change)} back. ${sum>m.change?'Take some back.':'Add a little more.'}`;renderModal();break}
+      const opt=m.tray.length===breakdown(m.change).length;closeModal();complete({method:'cash',tendered:m.tendered,change:m.change,optimal:opt});break;}
+    case 'skipcount':closeModal();complete({method:'cash',tendered:m.tendered,change:m.change,optimal:true});break;
+    case 'cardtap':m.step='proc';renderModal();setTimeout(()=>{if(S.modal!==m)return;m.step='ok';renderModal();setTimeout(()=>{if(S.modal!==m)return;closeModal();complete({method:'card'})},800)},1200);break;
+    case 'close':closeModal();break;
+    case 'next':closeModal();if(S.mode==='practice')newCustomer();else{clearSale();render()}break;
+    case 'fab':$('#order').scrollIntoView({behavior:'smooth',block:'start'});break;
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.modal&&S.modal.kind!=='receipt'&&S.modal.kind!=='scan')closeModal()});
+setInterval(()=>{const t=$('#gtime');if(t&&S.mode==='practice'&&!(S.modal&&S.modal.kind==='receipt'))t.textContent=dur(Date.now()-S.start)},1000);
+newCustomer();
+</script>
+
+</body>
+</html>
